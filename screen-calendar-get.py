@@ -15,7 +15,7 @@ configure_locale()
 configure_logging()
 
 # note: increasing this will require updates to the SVG template to accommodate more events
-max_event_results = 10
+max_event_results = 3*7
 
 google_calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 outlook_calendar_id = os.getenv("OUTLOOK_CALENDAR_ID", None)
@@ -24,11 +24,25 @@ caldav_calendar_url = os.getenv('CALDAV_CALENDAR_URL', None)
 caldav_username = os.getenv("CALDAV_USERNAME", None)
 caldav_password = os.getenv("CALDAV_PASSWORD", None)
 caldav_calendar_id = os.getenv("CALDAV_CALENDAR_ID", None)
+screen_layout = os.getenv("SCREEN_LAYOUT", None)
 
 ics_calendar_url = os.getenv("ICS_CALENDAR_URL", None)
 
 ttl = float(os.getenv("CALENDAR_TTL", 1 * 60 * 60))
 
+def get_weekly_formatted_calendar_events(fetched_events: list[CalendarEvent], start_day) -> dict:
+    formatted_events = {}
+    for day, events in fetched_events.items():
+        formatted_events[f'WEEKDAY_{day}'] = (start_day + datetime.timedelta(days=day)).strftime("%A")
+        for index, event in enumerate(events):
+            formatted_events[f'DATE_{day}_{index}'] = get_datetime_formatted(event.start, event.end, event.all_day_event).split(" - ")[0].split()[1]
+            formatted_events[f'EVENTS_{day}_{index}'] = event.summary
+        if len(events) < 3:
+            for index in range(len(events), 3):
+                formatted_events[f'DATE_{day}_{index}'] = ""
+                formatted_events[f'EVENTS_{day}_{index}'] = ""
+    print(formatted_events)
+    return formatted_events
 
 def get_formatted_calendar_events(fetched_events: list[CalendarEvent]) -> dict:
     formatted_events = {}
@@ -46,6 +60,20 @@ def get_formatted_calendar_events(fetched_events: list[CalendarEvent]) -> dict:
 
     return formatted_events
 
+def get_daily_events(calendar_events: list[CalendarEvent], start_day) -> list[CalendarEvent]:
+    weekly_events = {}
+    for day in range(0,7):
+        daily_events = []
+        for event in calendar_events:
+            if type(event.start) == datetime.datetime:
+                event_day = event.start.date()
+            elif type(event.start) == datetime.date:
+                event_day = event.start
+            day_diff = (event_day - start_day.date()).days
+            if day_diff == day:
+                daily_events.append(event)
+        weekly_events[day] = daily_events
+    return weekly_events
 
 def get_datetime_formatted(event_start, event_end, is_all_day_event, start_only=False):
 
@@ -81,25 +109,35 @@ def main():
     today_start_time = datetime.datetime.utcnow()
     if os.getenv("CALENDAR_INCLUDE_PAST_EVENTS_FOR_TODAY", "0") == "1":
         today_start_time = datetime.datetime.combine(datetime.datetime.utcnow(), datetime.datetime.min.time())
-    oneyearlater_iso = (datetime.datetime.now().astimezone()
+
+    if screen_layout == "6":
+        time_until_iso = (datetime.datetime.now().astimezone()
                         + datetime.timedelta(days=365)).astimezone()
+    else:
+        time_until_iso = (datetime.datetime.now().astimezone()
+                          + datetime.timedelta(days=7)).astimezone()
 
     if outlook_calendar_id:
         logging.info("Fetching Outlook Calendar Events")
-        provider = OutlookCalendar(outlook_calendar_id, max_event_results, today_start_time, oneyearlater_iso)
+        provider = OutlookCalendar(outlook_calendar_id, max_event_results, today_start_time, time_until_iso)
     elif caldav_calendar_url:
         logging.info("Fetching Caldav Calendar Events")
         provider = CalDavCalendar(caldav_calendar_url, caldav_calendar_id, max_event_results,
-                                  today_start_time, oneyearlater_iso, caldav_username, caldav_password)
+                                  today_start_time, time_until_iso, caldav_username, caldav_password)
     elif ics_calendar_url:
         logging.info("Fetching ics Calendar Events")
-        provider = ICSCalendar(ics_calendar_url, max_event_results, today_start_time, oneyearlater_iso)
+        provider = ICSCalendar(ics_calendar_url, max_event_results, today_start_time, time_until_iso)
     else:
         logging.info("Fetching Google Calendar Events")
-        provider = GoogleCalendar(google_calendar_id, max_event_results, today_start_time, oneyearlater_iso)
+        provider = GoogleCalendar(google_calendar_id, max_event_results, today_start_time, time_until_iso)
 
     calendar_events = provider.get_calendar_events()
-    output_dict = get_formatted_calendar_events(calendar_events)
+
+    if screen_layout == "6":
+        daily_events = get_daily_events(calendar_events, today_start_time)
+        output_dict = get_weekly_formatted_calendar_events(daily_events, today_start_time)
+    else:
+        output_dict = get_formatted_calendar_events(calendar_events)
 
     # XML escape for safety
     for key, value in output_dict.items():
