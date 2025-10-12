@@ -39,10 +39,15 @@ def get_weekly_formatted_calendar_events(fetched_events: list[CalendarEvent], st
     for day, events in fetched_events.items():
         formatted_events[f'WEEKDAY_{day}'] = (start_day + datetime.timedelta(days=day)).strftime("%A")
         for index, event in enumerate(events):
-            formatted_events[f'DATE_{day}_{index}'] = get_datetime_formatted(event.start, event.end, event.all_day_event).split(" - ")[0].split()[1]
-            formatted_events[f'EVENTS_{day}_{index}'] = event.summary
+            formatted_events[f'BOX_{day}_{index}_STROKE']="#000"
+            try:
+                formatted_events[f'DATE_{day}_{index}'] = get_datetime_formatted(event.start, event.end, event.all_day_event).split(" - ")[0].split()[1]
+            except IndexError:
+                formatted_events[f'DATE_{day}_{index}'] = "All Day"
+            formatted_events[f'EVENTS_{day}_{index}'] = event.summary[:15].replace("(+) ","")
         if len(events) < 3:
             for index in range(len(events), 3):
+                formatted_events[f'BOX_{day}_{index}_STROKE']="none"
                 formatted_events[f'DATE_{day}_{index}'] = ""
                 formatted_events[f'EVENTS_{day}_{index}'] = ""
     print(formatted_events)
