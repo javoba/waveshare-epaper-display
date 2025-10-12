@@ -15,7 +15,6 @@ configure_locale()
 configure_logging()
 
 # note: increasing this will require updates to the SVG template to accommodate more events
-max_event_results = 3*7
 
 google_calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 outlook_calendar_id = os.getenv("OUTLOOK_CALENDAR_ID", None)
@@ -23,8 +22,13 @@ outlook_calendar_id = os.getenv("OUTLOOK_CALENDAR_ID", None)
 caldav_calendar_url = os.getenv('CALDAV_CALENDAR_URL', None)
 caldav_username = os.getenv("CALDAV_USERNAME", None)
 caldav_password = os.getenv("CALDAV_PASSWORD", None)
-caldav_calendar_id = os.getenv("CALDAV_CALENDAR_ID", None)
+caldav_calendar_ids = os.getenv("CALDAV_CALENDAR_IDS", None)
 screen_layout = os.getenv("SCREEN_LAYOUT", None)
+
+if screen_layout == "6":
+    max_event_results = 100
+else:
+    max_event_results = 10
 
 ics_calendar_url = os.getenv("ICS_CALENDAR_URL", None)
 
@@ -101,37 +105,66 @@ def get_datetime_formatted(event_start, event_end, is_all_day_event, start_only=
         day = ''
     return day
 
+def fetch_caldav_events_multi(base_url, ids, max_events, start_dt, end_dt, username, password):
+    from calendar_providers.caldav import CalDavCalendar
+    aggregated = []
+    seen = set()
+    for cid in ids:
+        provider = CalDavCalendar(base_url, cid, max_events, start_dt, end_dt, username, password)
+        events = provider.get_calendar_events()
+        for ev in events:
+            # Deduplicate by (summary, start, end)
+            key = (ev.summary, ev.start, ev.end)
+            if key not in seen:
+                seen.add(key)
+                aggregated.append(ev)
+    print(aggregated)
+    # Sort by start time
+    aggregated.sort(
+    key=lambda e: (
+        e.start if isinstance(e.start, datetime.datetime)
+        else datetime.datetime.combine(e.start, datetime.time.min)
+        )
+    )
+    return aggregated[:max_events]
 
 def main():
 
     output_svg_filename = 'screen-output-weather.svg'
 
-    today_start_time = datetime.datetime.utcnow()
+    today_start_time = datetime.datetime.now().astimezone()
     if os.getenv("CALENDAR_INCLUDE_PAST_EVENTS_FOR_TODAY", "0") == "1":
         today_start_time = datetime.datetime.combine(datetime.datetime.utcnow(), datetime.datetime.min.time())
 
     if screen_layout == "6":
         time_until_iso = (datetime.datetime.now().astimezone()
-                        + datetime.timedelta(days=365)).astimezone()
+                        + datetime.timedelta(days=7)).astimezone()
     else:
         time_until_iso = (datetime.datetime.now().astimezone()
-                          + datetime.timedelta(days=7)).astimezone()
+                          + datetime.timedelta(days=365)).astimezone()
 
     if outlook_calendar_id:
         logging.info("Fetching Outlook Calendar Events")
         provider = OutlookCalendar(outlook_calendar_id, max_event_results, today_start_time, time_until_iso)
     elif caldav_calendar_url:
-        logging.info("Fetching Caldav Calendar Events")
-        provider = CalDavCalendar(caldav_calendar_url, caldav_calendar_id, max_event_results,
+        if "," in caldav_calendar_ids:
+            ids = [c.strip() for c in caldav_calendar_ids.split(",") if c.strip()]
+            calendar_events = fetch_caldav_events_multi(
+                caldav_calendar_url, ids, max_event_results, today_start_time, time_until_iso,
+                caldav_username, caldav_password
+            )
+        else:
+            logging.info("Fetching Caldav Calendar Events")
+            provider = CalDavCalendar(caldav_calendar_url, caldav_calendar_ids, max_event_results,
                                   today_start_time, time_until_iso, caldav_username, caldav_password)
+            calendar_events = provider.get_calendar_events()
+
     elif ics_calendar_url:
         logging.info("Fetching ics Calendar Events")
         provider = ICSCalendar(ics_calendar_url, max_event_results, today_start_time, time_until_iso)
     else:
         logging.info("Fetching Google Calendar Events")
         provider = GoogleCalendar(google_calendar_id, max_event_results, today_start_time, time_until_iso)
-
-    calendar_events = provider.get_calendar_events()
 
     if screen_layout == "6":
         daily_events = get_daily_events(calendar_events, today_start_time)

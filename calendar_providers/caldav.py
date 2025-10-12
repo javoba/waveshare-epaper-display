@@ -1,15 +1,15 @@
-
 import pickle
 import caldav
 from utility import is_stale
 import os
 import logging
 import datetime
+from zoneinfo import ZoneInfo
 from .base_provider import BaseCalendarProvider, CalendarEvent
 
 
 ttl = float(os.getenv("CALENDAR_TTL", 1 * 60 * 60))
-
+LOCAL_TZ = ZoneInfo(os.getenv("LOCAL_TIMEZONE", "Europe/Zurich"))
 
 class CalDavCalendar(BaseCalendarProvider):
 
@@ -22,52 +22,68 @@ class CalDavCalendar(BaseCalendarProvider):
         self.from_date = from_date
         self.to_date = to_date
 
+    def _ensure_datetime(self, v):
+        # Turn date -> datetime @ midnight local
+        if isinstance(v, datetime.date) and not isinstance(v, datetime.datetime):
+            v = datetime.datetime.combine(v, datetime.time.min)
+        # If naive, assume local timezone
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=LOCAL_TZ)
+        # Normalize to UTC (choose UTC internally)
+        return v.astimezone(datetime.timezone.utc)
+
     def get_calendar_events(self):
 
-        caldav_calendar_pickle = 'cache_caldav.pickle'
+        caldav_calendar_pickle = f'cache_caldav_{self.calendar_id}.pickle'
         calendar_events: list[CalendarEvent] = []
 
         if is_stale(os.getcwd() + "/" + caldav_calendar_pickle, ttl):
-            logging.debug("Pickle is stale, fetching Caldav Calendar")
+            logging.debug("Pickle is stale, fetching CalDav Calendar")
 
             with caldav.DAVClient(url=self.calendar_url, username=self.username, password=self.password) as client:
                 my_principal = client.principal()
-
                 calendar = my_principal.calendar(cal_id=self.calendar_id)
                 event_results = calendar.date_search(start=self.from_date, end=self.to_date, expand=True)
-                events_data = []
-
+                components = []
                 for result in event_results:
                     for component in result.icalendar_instance.subcomponents:
-                        events_data.append(component)
+                        components.append(component)
 
-            # Sort by start date. Since some are dates, and some are datetimes, a simple string sort works
-            events_data.sort(key=lambda x: str(x['DTSTART'].dt))
+            # Sort by stringified DTSTART (works for mixed types)
+            components.sort(key=lambda x: str(x['DTSTART'].dt))
 
-            for event in events_data[0:self.max_event_results]:
+            for component in components[0:self.max_event_results]:
+                start_raw = component['DTSTART'].dt
 
-                # If a dtend isn't included, calculate it from the duration
-                if 'DTEND' in event:
-                    event_end = event['DTEND'].dt
-                if 'DURATION' in event:
-                    event_end = event['DTSTART'].dt + event['DURATION'].dt
+                # Determine end
+                if 'DTEND' in component:
+                    event_end = component['DTEND'].dt
+                elif 'DURATION' in component:
+                    event_end = component['DTSTART'].dt + component['DURATION'].dt
+                else:
+                    event_end = start_raw  # zero-length fallback
 
                 all_day_event = False
-                # CalDav Calendar marks the 'end' of all-day-events as
-                # the day _after_ the last day. eg, Today's all day event ends tomorrow!
-                # So subtract a day, if the event is an all day event
-                if type(event_end) == datetime.date:
+                # All-day events: DTEND is exclusive date; subtract one day
+                if isinstance(event_end, datetime.date) and not isinstance(event_end, datetime.datetime):
                     event_end = event_end - datetime.timedelta(days=1)
                     all_day_event = True
 
-                calendar_events.append(CalendarEvent(str(event['SUMMARY']), event['DTSTART'].dt, event_end, all_day_event))
+                start_norm = self._ensure_datetime(start_raw)
+                end_norm = self._ensure_datetime(event_end)
+
+                calendar_events.append(
+                    CalendarEvent(str(component.get('SUMMARY', '')), start_norm, end_norm, all_day_event)
+                )
+
+            # Now a simple sort works (all UTC aware)
+            calendar_events.sort(key=lambda e: e.start)
 
             with open(caldav_calendar_pickle, 'wb') as cal:
                 pickle.dump(calendar_events, cal)
-
-            return calendar_events
         else:
             logging.info("Found in cache")
             with open(caldav_calendar_pickle, 'rb') as cal:
                 calendar_events = pickle.load(cal)
-                return calendar_events
+
+        return calendar_events
