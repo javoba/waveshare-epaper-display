@@ -44,22 +44,46 @@ class CalDavCalendar(BaseCalendarProvider):
                 my_principal = client.principal()
                 calendar = my_principal.calendar(cal_id=self.calendar_id)
                 event_results = calendar.date_search(start=self.from_date, end=self.to_date, expand=True)
+
                 components = []
                 for result in event_results:
-                    for component in result.icalendar_instance.subcomponents:
+                    ical = result.icalendar_instance
+                    for component in getattr(ical, "subcomponents", []):
+                        name = getattr(component, "name", "").upper()
+                        if name != "VEVENT":
+                            continue
+                        if 'DTSTART' not in component:
+                            # Unexpected, but be defensive
+                            logging.warning(
+                                "Skipping VEVENT without DTSTART (UID=%s)",
+                                component.get('UID', '?')
+                            )
+                            continue
                         components.append(component)
 
-            # Sort by stringified DTSTART (works for mixed types)
-            components.sort(key=lambda x: str(x['DTSTART'].dt))
+            if not components:
+                logging.info("No VEVENT components with a DTSTART found in the requested range.")
+                # Cache empty list
+                with open(caldav_calendar_pickle, 'wb') as cal:
+                    pickle.dump(calendar_events, cal)
+                return calendar_events
+
+            # Sort by DTSTART safely
+            components.sort(key=lambda x: x.get('DTSTART').dt)
 
             for component in components[0:self.max_event_results]:
-                start_raw = component['DTSTART'].dt
+                start_prop = component.get('DTSTART')
+                if start_prop is None:
+                    # Should not happen after filtering, but guard anyway
+                    logging.debug("Skipping component missing DTSTART after filter.")
+                    continue
+                start_raw = start_prop.dt
 
                 # Determine end
                 if 'DTEND' in component:
                     event_end = component['DTEND'].dt
                 elif 'DURATION' in component:
-                    event_end = component['DTSTART'].dt + component['DURATION'].dt
+                    event_end = start_raw + component['DURATION'].dt
                 else:
                     event_end = start_raw  # zero-length fallback
 
