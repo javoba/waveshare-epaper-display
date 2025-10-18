@@ -15,10 +15,11 @@ import humanize
 import locale
 from babel.dates import format_time
 
+babel_locale = os.getenv("BABEL_LOCALE", "de_CH")
 
 def configure_locale():
     try:
-        locale.setlocale(locale.LC_ALL, '')
+        locale.setlocale(locale.LC_TIME, 'de_CH.UTF-8')
     except locale.Error:
         logging.debug("Could not set locale")
 
@@ -146,10 +147,10 @@ def get_xml_from_url(url, headers, cache_file_name, ttl):
 
 def get_formatted_time(dt):
     try:
-        formatted_time = format_time(dt, format='short', locale=locale.getlocale()[0])
+        formatted_time = format_time(dt, format='HH:mm', locale=babel_locale)
     except Exception:
         logging.debug("Locale not found for Babel library.")
-        formatted_time = dt.strftime("%-I:%M %p")
+        formatted_time = dt.strftime("%H:%M")
     return formatted_time
 
 
@@ -167,8 +168,8 @@ def get_formatted_date(dt, include_time=True):
         formatted_time = " "
 
     try:
-        short_locale = locale.getlocale()[0]  # en_GB
-        short_locale = short_locale.split("_")[0]  # en
+        short_locale = babel_locale  # en_GB
+        short_locale = babel_locale.split("_")[0]  # en
         if not short_locale == "en":
             humanize.activate(short_locale)
         has_locale = True
