@@ -39,7 +39,7 @@
 
 
   <g clip-path="url(#clip-col0)" font-family="sans-serif">
-    <text id="day0"   x="92"  y="235" style="font-size:18px;font-weight:bold;text-anchor:middle;">WEEKDAY_0</text>
+    <text id="day0"   x="92"  y="230" style="font-size:22px;font-weight:bold;text-anchor:middle;">WEEKDAY_0</text>
     <g id="event0_0">
       <rect x="20" y="247" width="134" height="51" rx="8" ry="8" fill="none" stroke="BOX_0_0_STROKE" stroke-width="1"/>
       <text id="date0_0" x="92"  y="265" style="font-size:18px;text-anchor:middle;">DATE_0_0</text>
@@ -57,7 +57,7 @@
     <text id="ev0_2"   x="92"  y="440" style="font-size:18px;text-anchor:middle;">EVENTS_0_2</text>
   </g>
   <g clip-path="url(#clip-col1)" font-family="sans-serif">
-    <text id="day1" x="246"  y="235" style="font-size:18px;font-weight:bold;text-anchor:middle;">WEEKDAY_1</text>
+    <text id="day1" x="246"  y="230" style="font-size:22px;font-weight:bold;text-anchor:middle;">WEEKDAY_1</text>
     <g id="event1_0">
       <rect x="179" y="247" width="134" height="51" rx="8" ry="8" fill="none" stroke="BOX_1_0_STROKE" stroke-width="1"/>
       <text id="date1_0" x="246"  y="265" style="font-size:18px;text-anchor:middle;">DATE_1_0</text>
@@ -75,7 +75,7 @@
     </g>
   </g>
   <g clip-path="url(#clip-col2)" font-family="sans-serif">
-    <text id="day2" x="400" y="235" style="font-size:18px;font-weight:bold;text-anchor:middle;">WEEKDAY_2</text>
+    <text id="day2" x="400" y="230" style="font-size:22px;font-weight:bold;text-anchor:middle;">WEEKDAY_2</text>
     <g id="event2_0">
       <rect x="333" y="247" width="134" height="51" rx="8" ry="8" fill="none" stroke="BOX_2_0_STROKE" stroke-width="1"/>
       <text id="date2_0" x="400"  y="265" style="font-size:18px;text-anchor:middle;">DATE_2_0</text>
@@ -93,7 +93,7 @@
     </g>
   </g>
   <g clip-path="url(#clip-col3)" font-family="sans-serif">
-    <text id="day3" x="554" y="235" style="font-size:18px;font-weight:bold;text-anchor:middle;">WEEKDAY_3</text>
+    <text id="day3" x="554" y="230" style="font-size:22px;font-weight:bold;text-anchor:middle;">WEEKDAY_3</text>
     <g id="event3_0">
       <rect x="487" y="247" width="134" height="51" rx="8" ry="8" fill="none" stroke="BOX_3_0_STROKE" stroke-width="1"/>
       <text id="date3_0" x="554"  y="265" style="font-size:18px;text-anchor:middle;">DATE_3_0</text>
@@ -111,7 +111,7 @@
     </g>
   </g>
   <g clip-path="url(#clip-col4)" font-family="sans-serif">
-    <text id="day4" x="708" y="235" style="font-size:18px;font-weight:bold;text-anchor:middle;">WEEKDAY_4</text>
+    <text id="day4" x="708" y="230" style="font-size:22px;font-weight:bold;text-anchor:middle;">WEEKDAY_4</text>
     <g id="event4_0">
       <rect x="641" y="247" width="134" height="51" rx="8" ry="8" fill="none" stroke="BOX_4_0_STROKE" stroke-width="1"/>
       <text id="date4_0" x="708"  y="265" style="font-size:18px;text-anchor:middle;">DATE_4_0</text>
