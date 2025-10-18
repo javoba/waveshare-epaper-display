@@ -3,6 +3,7 @@ import os.path
 import os
 import logging
 import emoji
+import zoneinfo
 from xml.sax.saxutils import escape
 from calendar_providers.base_provider import CalendarEvent
 from calendar_providers.caldav import CalDavCalendar
@@ -25,6 +26,8 @@ caldav_password = os.getenv("CALDAV_PASSWORD", None)
 caldav_calendar_ids = os.getenv("CALDAV_CALENDAR_IDS", None)
 screen_layout = os.getenv("SCREEN_LAYOUT", None)
 
+display_tz = zoneinfo.ZoneInfo(os.getenv("TZ", None))
+
 if screen_layout == "6":
     max_event_results = 100
 else:
@@ -44,13 +47,12 @@ def get_weekly_formatted_calendar_events(fetched_events: list[CalendarEvent], st
                 formatted_events[f'DATE_{day}_{index}'] = get_datetime_formatted(event.start, event.end, event.all_day_event).split(" - ")[0].split()[1]
             except IndexError:
                 formatted_events[f'DATE_{day}_{index}'] = "All Day"
-            formatted_events[f'EVENTS_{day}_{index}'] = event.summary[:15].replace("(+) ","")
+            formatted_events[f'EVENTS_{day}_{index}'] = event.summary.replace("(+) ","")[:12]
         if len(events) < 3:
             for index in range(len(events), 3):
                 formatted_events[f'BOX_{day}_{index}_STROKE']="none"
                 formatted_events[f'DATE_{day}_{index}'] = ""
                 formatted_events[f'EVENTS_{day}_{index}'] = ""
-    print(formatted_events)
     return formatted_events
 
 def get_formatted_calendar_events(fetched_events: list[CalendarEvent]) -> dict:
@@ -85,7 +87,17 @@ def get_daily_events(calendar_events: list[CalendarEvent], start_day) -> list[Ca
     return weekly_events
 
 def get_datetime_formatted(event_start, event_end, is_all_day_event, start_only=False):
+    def to_display_tz(dt):
+        if isinstance(dt, datetime.datetime):
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            return dt.astimezone(display_tz)
+        elif isinstance(dt, datetime.date):
+            return datetime.datetime.combine(dt, datetime.time.min, display_tz)
+        return dt
 
+    event_start = to_display_tz(event_start)
+    event_end = to_display_tz(event_end)
     if is_all_day_event or type(event_start) == datetime.date:
         start = datetime.datetime.combine(event_start, datetime.time.min)
         end = datetime.datetime.combine(event_end, datetime.time.min)
@@ -123,7 +135,6 @@ def fetch_caldav_events_multi(base_url, ids, max_events, start_dt, end_dt, usern
             if key not in seen:
                 seen.add(key)
                 aggregated.append(ev)
-    print(aggregated)
     # Sort by start time
     aggregated.sort(
     key=lambda e: (
@@ -137,16 +148,16 @@ def main():
 
     output_svg_filename = 'screen-output-weather.svg'
 
-    today_start_time = datetime.datetime.now().astimezone()
+    today_start_time = datetime.datetime.now().astimezone(display_tz)
     if os.getenv("CALENDAR_INCLUDE_PAST_EVENTS_FOR_TODAY", "0") == "1":
         today_start_time = datetime.datetime.combine(datetime.datetime.utcnow(), datetime.datetime.min.time())
 
     if screen_layout == "6":
-        time_until_iso = (datetime.datetime.now().astimezone()
-                        + datetime.timedelta(days=7)).astimezone()
+        time_until_iso = (datetime.datetime.now().astimezone(display_tz)
+                        + datetime.timedelta(days=7)).astimezone(display_tz)
     else:
-        time_until_iso = (datetime.datetime.now().astimezone()
-                          + datetime.timedelta(days=365)).astimezone()
+        time_until_iso = (datetime.datetime.now().astimezone(display_tz)
+                          + datetime.timedelta(days=365)).astimezone(display_tz)
 
     if outlook_calendar_id:
         logging.info("Fetching Outlook Calendar Events")
